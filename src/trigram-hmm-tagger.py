@@ -36,8 +36,8 @@ def MLEstimates(countFilePath):
 
     # estimate emission probabilities
     for k, v in emissionCounts.items():
-        state = k.split('->')[0]
-        obs = k.split('->')[1]
+        state = k.split('->')[0].strip()
+        obs = k.split('->')[1].strip()
         key = obs + '|' + state
         seenObservations[obs] = 1
         value = math.log(v / float(unigramCounts[state]))
@@ -66,14 +66,28 @@ def getRareWordCategory(word):
     return '_RARE_'
 
 def unwrap(pi,pi_pos):
-    
-    return tags
+    max_pos_end = 'STOP'
+    max_pos_mid = []
+    for pk in sorted(pi_pos.keys(), reverse=True):
+       print pk,pi_pos[pk]
+       max_at_pk = float("-inf")
+       max_pos = ''
+       for pos in pi_pos[pk]:
+           print pos,pi[pos]
+           if (pi[pos] > max_at_pk and pos.split(",").pop() == max_pos_end):
+               max_pos = pos
+       print max_pos
+       max_pos_end = max_pos.split(",")[1] 
+       max_pos_mid.append(max_pos_end)
+    max_pos_mid.pop()
+    max_pos_mid.reverse()
+    return max_pos_mid
         
 def getViterbiProbability(possible_states_per_word, words):
     pi = {}
-    pi['0,*,*'] = [0]
+    pi['0,*,*'] = 0
     pi_pos={}
-    
+    arg_pi= {}
     for k in range(1,len(words)+2):
         uvs_lp = {}
         for u in possible_states_per_word[k-1]:
@@ -89,35 +103,37 @@ def getViterbiProbability(possible_states_per_word, words):
                     if(v == 'STOP'):
                         e = 0.0
                     elif (emissions.has_key(words[k] + '|' + v)):
+                        #print 'e = ',words[k],'|',v
                         e = emissions[words[k] + '|' + v]
                     else:
                         e = float("-inf")
                    
                     pi_key = str(k-1)+','+w+','+u
                     print 'searching pi_key',pi_key
-                    p = max(pi[str(int(k-1))+','+w+','+u]) + q + e
-                    #if(p > max_p):
-                    #    max_p = p
-                    #    arg_pi[k-2]= w
-                        
-                    new_pi_key = str(k)+','+u+','+v
-                    print 'adding pi_key',new_pi_key, 'p=',p, 'pp=', math.exp(p)
-                    if (pi.has_key(new_pi_key)):
-                        pi[new_pi_key].append(p)
-                    else:
-                        pi[new_pi_key] = [p]
-                    if (pi_pos.has_key(k)):
-                        pi_pos[k].append(new_pi_key)
-                    else:
-                        pi_pos[k] = [new_pi_key]
+                    p = pi[str(int(k-1))+','+w+','+u] + q + e
+                    
+                    if(p > max_p):
+                        max_p = p
+                        arg_pi[k-2]= w  
+                new_pi_key = str(k)+','+u+','+v
+                print 'pi[',new_pi_key, ']= pi[',pi_key,']=',math.exp(pi[str(int(k-1))+','+w+','+u]),' q=',math.exp(q),' * e=',math.exp(e), ' = ' ,math.exp(max_p)
+                pi[new_pi_key] = max_p
+                if (pi_pos.has_key(k)):
+                    pi_pos[k].append(new_pi_key)
+                else:
+                    pi_pos[k] = [new_pi_key]
             
     
-
-
+    tags = unwrap(pi,pi_pos)
     print pi
     print pi_pos
-    unwrap(pi,pi_pos)
-    return words.values()
+    
+    #must calulate last 2 tags
+    del arg_pi[0]
+    del arg_pi[-1]
+    print zip(tags,words.values())
+    print zip(arg_pi.values(),words.values())
+    return tags
 
 
 def getPossibleSates(sentence):
@@ -128,10 +144,14 @@ def getPossibleSates(sentence):
     i = 1
     for word in sentence.split("\n"):
         
+        word= word.strip()
+       
         if (seenObservations.has_key(word)):
+            
             words[i] = word
             possible_states_per_word[i] = getWordPossibleTags(word)
         else:
+           
             rare_word = getRareWordCategory(word)
             words[i] = rare_word
             possible_states_per_word[i] = getWordPossibleTags(rare_word)
@@ -162,7 +182,7 @@ if __name__ == "__main__":
         testSentences = open(testFile, 'r').read().split("\n\n")
         for a_sentence in testSentences:
             (possible_states_per_word, words) = getPossibleSates(a_sentence.strip())
-            #print a_sentence.strip().split("\n")
+            print a_sentence.strip().split("\n")
             tags = getViterbiProbability(possible_states_per_word, words)
             original_words = a_sentence.strip().split('\n')
             for word,tag in zip(original_words,tags):
