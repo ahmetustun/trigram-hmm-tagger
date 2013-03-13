@@ -65,20 +65,15 @@ def getWordPossibleTags(word):
 def getRareWordCategory(word):
     return '_RARE_'
 
-def dispStack(sta):
-    for s in sta:
-        s.disp()
+def unwrap(pi,pi_pos):
+    
+    return tags
         
 def getViterbiProbability(possible_states_per_word, words):
     pi = {}
-    pi_pos = {}
-    arg_pi = {}
-    stack = []
-    bt = BackTraceNode('*',0)
-    stack.append(bt)
-    dispStack(stack)
-    pi['0,*,*'] = 0
-    pi_pos[0] = ['0,*,*']
+    pi['0,*,*'] = [0]
+    pi_pos={}
+    
     for k in range(1,len(words)+2):
         uvs_lp = {}
         for u in possible_states_per_word[k-1]:
@@ -100,40 +95,29 @@ def getViterbiProbability(possible_states_per_word, words):
                    
                     pi_key = str(k-1)+','+w+','+u
                     print 'searching pi_key',pi_key
-                    p = pi[str(int(k-1))+','+w+','+u] + q + e
-                    for parent in stack:
-                        bt = BackTraceNode(w,p)
-                        new_bt_nodes.append( bt)
-                        parent.addChild(bt)
-                    if(p > max_p):
-                        max_p = p
-                        arg_pi[k-2]= w
-                 
-                dispStack(stack)
-                new_pi_key = str(k)+','+u+','+v
-                print 'adding pi_key',new_pi_key, 'p=',max_p, 'pp=', math.exp(max_p)
-                pi[new_pi_key]= max_p
-                if pi_pos.has_key(k):
-                    pi_pos[k].append(new_pi_key)
-                else:
-                    pi_pos[k] = [new_pi_key]
-    
+                    p = max(pi[str(int(k-1))+','+w+','+u]) + q + e
+                    #if(p > max_p):
+                    #    max_p = p
+                    #    arg_pi[k-2]= w
+                        
+                    new_pi_key = str(k)+','+u+','+v
+                    print 'adding pi_key',new_pi_key, 'p=',p, 'pp=', math.exp(p)
+                    if (pi.has_key(new_pi_key)):
+                        pi[new_pi_key].append(p)
+                    else:
+                        pi[new_pi_key] = [p]
+                    if (pi_pos.has_key(k)):
+                        pi_pos[k].append(new_pi_key)
+                    else:
+                        pi_pos[k] = [new_pi_key]
+            
     
 
-    max_last_tag =''
-    max_last_prob = float('-inf')
-    for tags in pi_pos[k]:
-        print 'last tags', tags, 'probs',pi[tags]
-        if pi[tags] >= max_last_prob:
-            max_last_prob = pi[tags]
-            max_last_tag = tags
-    arg_pi[k-1] = max_last_tag.split(',')[1]
-    print words
-    arg_pi.pop(0)
-    arg_pi.pop(-1)
-    print arg_pi
-    
-    return arg_pi.values()
+
+    print pi
+    print pi_pos
+    unwrap(pi,pi_pos)
+    return words.values()
 
 
 def getPossibleSates(sentence):
