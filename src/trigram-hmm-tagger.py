@@ -6,6 +6,7 @@ Created on Mar 10, 2013
 import math
 import sys
 from ViterbiState import ViterbiState
+from pprint import pprint
 from BackTraceNode import BackTraceNode
 
 unigramCounts = {}
@@ -16,6 +17,7 @@ seenObservations = {}
 emissions = {}
 transitions = {}
 pi = {}
+
 
 def MLEstimates(countFilePath):
     lines = open(countFilePath, 'r').readlines()
@@ -65,6 +67,8 @@ def getWordPossibleTags(word):
 def getRareWordCategory(word):
     return '_RARE_'
 
+
+    
 def unwrap(pi,pi_pos):
     max_pos_end = 'STOP'
     max_pos_mid = []
@@ -85,16 +89,19 @@ def unwrap(pi,pi_pos):
         
 def getViterbiProbability(possible_states_per_word, words):
     pi = {}
-    pi['0,*,*'] = 0
-    pi_pos={}
     arg_pi= {}
+    pi['0,*,*'] = 0
+    arg_pi['0,*,*'] = []
+    pi_pos={}
+    
     for k in range(1,len(words)+2):
         uvs_lp = {}
         for u in possible_states_per_word[k-1]:
             for v in possible_states_per_word[k]:
                 max_p = float('-inf')
-                max_arg = ''
-                new_bt_nodes = []
+
+                ps = []
+                pw = []
                 for w in possible_states_per_word[k-2]:
                     print 'k=',k,'w=',w,'u=',u,'v=',v
                     if (transitions.has_key(v + '|' + w + ',' + u)):
@@ -112,42 +119,30 @@ def getViterbiProbability(possible_states_per_word, words):
                     pi_key = str(k-1)+','+w+','+u
                     print 'searching pi_key',pi_key
                     p = pi[str(int(k-1))+','+w+','+u] + q + e
-                    uvs_lp[u+','+v] = p
-                    if(p > max_p):
-                        max_p = p
-                        max_arg = w
+                    bt = list(arg_pi[str(int(k-1))+','+w+','+u])
+                    
+                    bt.append(w)
+                    if (v == 'STOP'):
+                        bt.append(u)
+                    ps.append(p)
+                    pw.append(bt)
+                    
                         #arg_pi[k-2]= w  
+                max_p = max(ps)
+                max_bt = pw[ps.index(max_p)]
                 new_pi_key = str(k)+','+u+','+v
                 print 'pi[',new_pi_key, ']= pi[',pi_key,']=',math.exp(pi[str(int(k-1))+','+w+','+u]),' q=',math.exp(q),' * e=',math.exp(e), ' = ' ,math.exp(max_p)
                 pi[new_pi_key] = max_p
-                arg_pi[new_pi_key] = max_arg
-                if (pi_pos.has_key(k)):
-                    pi_pos[k].append(new_pi_key)
-                else:
-                    pi_pos[k] = [new_pi_key]
+                arg_pi[new_pi_key] = max_bt
+
             
     
-    
-    max = float("-Inf")
-    max_uv = ''
-    for key, val in uvs_lp.items():
-       if (transitions.has_key('STOP|' + key)):
-           if (val + transitions['STOP|' + key] >= max):
-               max = val + transitions['STOP|' + key]
-               max_uv = key
-       else:
-           max = float("-Inf")
-           max_uv = key
-    tags = unwrap(pi,pi_pos,arg_p)
-    print pi
-    print arg_pi
-    print pi_pos
-    
-    #must calulate last 2 tags
+    max_bt.pop(0)
+    max_bt.pop(0)
+    print "back trace:",max_bt
+    print "probability", max_p
+    return max_bt
 
-    print zip(tags,words.values())
-    print zip(arg_pi.values(),words.values())
-    return tags
 
 
 def getPossibleSates(sentence):
@@ -200,7 +195,8 @@ if __name__ == "__main__":
             tags = getViterbiProbability(possible_states_per_word, words)
             original_words = a_sentence.strip().split('\n')
             for word,tag in zip(original_words,tags):
-               writer.write(word+' '+tag+'\n')
+                print word,tag
+                writer.write(word+' '+tag+'\n')
             writer.write('\n')    
         writer.flush()
         writer.close()
