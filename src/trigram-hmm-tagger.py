@@ -93,6 +93,7 @@ def getViterbiProbability(possible_states_per_word, words):
         for u in possible_states_per_word[k-1]:
             for v in possible_states_per_word[k]:
                 max_p = float('-inf')
+                max_arg = ''
                 new_bt_nodes = []
                 for w in possible_states_per_word[k-2]:
                     print 'k=',k,'w=',w,'u=',u,'v=',v
@@ -111,26 +112,39 @@ def getViterbiProbability(possible_states_per_word, words):
                     pi_key = str(k-1)+','+w+','+u
                     print 'searching pi_key',pi_key
                     p = pi[str(int(k-1))+','+w+','+u] + q + e
-                    
+                    uvs_lp[u+','+v] = p
                     if(p > max_p):
                         max_p = p
-                        arg_pi[k-2]= w  
+                        max_arg = w
+                        #arg_pi[k-2]= w  
                 new_pi_key = str(k)+','+u+','+v
                 print 'pi[',new_pi_key, ']= pi[',pi_key,']=',math.exp(pi[str(int(k-1))+','+w+','+u]),' q=',math.exp(q),' * e=',math.exp(e), ' = ' ,math.exp(max_p)
                 pi[new_pi_key] = max_p
+                arg_pi[new_pi_key] = max_arg
                 if (pi_pos.has_key(k)):
                     pi_pos[k].append(new_pi_key)
                 else:
                     pi_pos[k] = [new_pi_key]
             
     
-    tags = unwrap(pi,pi_pos)
+    
+    max = float("-Inf")
+    max_uv = ''
+    for key, val in uvs_lp.items():
+       if (transitions.has_key('STOP|' + key)):
+           if (val + transitions['STOP|' + key] >= max):
+               max = val + transitions['STOP|' + key]
+               max_uv = key
+       else:
+           max = float("-Inf")
+           max_uv = key
+    tags = unwrap(pi,pi_pos,arg_p)
     print pi
+    print arg_pi
     print pi_pos
     
     #must calulate last 2 tags
-    del arg_pi[0]
-    del arg_pi[-1]
+
     print zip(tags,words.values())
     print zip(arg_pi.values(),words.values())
     return tags
