@@ -16,17 +16,15 @@ seenObservations = {}
 emissions = {}
 transitions = {}
 pi = {}
-s2i = {'I-GENE':2, 'O':3, '*':1, 'STOP':0}
+#s2i = {'I-GENE':2, 'O':3, '*':1, 'STOP':0}
+s2i = {}
 i2s = {}
 
 def populateStateMap(_state):
+    if (not s2i.has_key(_state)):
+       s2i[_state] =  len(s2i)
+    print _state, s2i[_state]
     return s2i[_state]
-    # s2i[_state] = _state
-    # return s2i[_state]
-    # if (not s2i.has_key(_state)):
-    #   s2i[_state] =  len(s2i)
-    # print _state, s2i[_state]
-    # return s2i[_state]
                 
 def MLEstimates(countFilePath):
     populateStateMap('*')
@@ -123,8 +121,6 @@ def getViterbiProbability(possible_states_per_word, words):
             for u in possible_states_per_word[k - 1]:
                 prob2bt = {}
                 for w in possible_states_per_word[k - 2]:
-                    print 'k=', k, 'w=', w, 'u=', u, 'v=', v, words[k]
-                    # if (transitions.has_key(v + '|' + w + ',' + u)):
                     if transitions.has_key((v, w , u)):
                         q = transitions[(v , w , u)]
                         print str(v) , '|' , str(w) , ',' + str(v) , '=' , str(q)
@@ -138,15 +134,13 @@ def getViterbiProbability(possible_states_per_word, words):
                         e = float("-inf")
                    
                     pi_key = str(k - 1) + ',' + str(w) + ',' + str(u)
-                    print 'searching pi_key', pi_key
-                    
+                    #print 'searching pi_key', pi_key
                     p = pi[(k - 1 , w , u)] + q + e
                     bt = list(arg_pi[(k - 1, w , u)])              
                     bt.append(w)
                     prob2bt[p] = bt
                 max_p = max(prob2bt.keys())
-                print 'max_p =', max_p, 'when k,v,w,u' , k, v, w, u
-                pprint(prob2bt)
+                #print 'max_p =', max_p, 'when k,v,w,u' , k, v, w, u
                 max_bt = prob2bt[max_p]
                 new_pi_key = (k, u , v)
                 pi[new_pi_key] = max_p
@@ -157,10 +151,8 @@ def getViterbiProbability(possible_states_per_word, words):
     prob2bt = {}
     for v in possible_states_per_word[k]:
         for u in possible_states_per_word[k - 1]:
-                print 'last k,u,v,word=', k, u, v ,words[k-1], words[k] 
                 if transitions.has_key((s2i['STOP'], u , v)):
                     q = transitions[(s2i['STOP'], u , v)]
-                    print s2i['STOP'] , '|' , str(u) , ',' + str(v) , '=' , str(q)
                 else:
                     q = float("-inf") 
                 p = pi[(k  , u , v)] + q
@@ -171,7 +163,6 @@ def getViterbiProbability(possible_states_per_word, words):
 
     max_bt = prob2bt[max(prob2bt.keys())]
     max_p = max(prob2bt.keys())
-    print max_p, max_bt
     max_bt.pop(0)
     max_bt.pop(0)
     max_bt = map(lambda bt: i2s[bt], max_bt)
@@ -201,8 +192,6 @@ def getPossibleSates(sentence):
                 possible_states_per_word[i] = getWordPossibleTags(rare_word)
             # print word, possible_states_per_word[i]
             i += 1
-    
-    #possible_states_per_word[i] = [s2i['STOP']]
     return (possible_states_per_word, words)
 
 
