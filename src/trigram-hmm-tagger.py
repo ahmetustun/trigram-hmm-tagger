@@ -4,10 +4,9 @@ Created on Mar 10, 2013
 @author: arenduchintala
 '''
 import math
-import sys,re
-from ViterbiState import ViterbiState
+import sys, os, re
 from pprint import pprint
-from BackTraceNode import BackTraceNode
+
 
 unigramCounts = {}
 bigramCounts = {}
@@ -17,17 +16,17 @@ seenObservations = {}
 emissions = {}
 transitions = {}
 pi = {}
-s2i = {}
-i2s ={}
+s2i = {'I-GENE':2, 'O':3, '*':1, 'STOP':0}
+i2s = {}
 
 def populateStateMap(_state):
-    s2i[_state] = _state
-    return _state
-    #if (_state == '*' or _state == 'STOP'):
-    #    s2i[_state] = _state
-    #elif (not s2i.has_key(_state)):
-    #    s2i[_state] = str(len(s2i.keys()))
-    #return s2i[_state]
+    return s2i[_state]
+    # s2i[_state] = _state
+    # return s2i[_state]
+    # if (not s2i.has_key(_state)):
+    #   s2i[_state] =  len(s2i)
+    # print _state, s2i[_state]
+    # return s2i[_state]
                 
 def MLEstimates(countFilePath):
     populateStateMap('*')
@@ -35,134 +34,144 @@ def MLEstimates(countFilePath):
     
     lines = open(countFilePath, 'r').readlines()
     for line in lines:
+        line = line.rstrip()
+        # print line
         items = line.strip().split(" ")
         if (items[1].strip() == 'WORDTAG'):
             # 8 WORDTAG O localizes
-            emissionCounts[populateStateMap(items[2]) + '->' + items[3]] = int(items[0])
+            emissionCounts[(populateStateMap(items[2]) , items[3])] = int(items[0])
         elif (items[1].strip() == '1-GRAM'):
             # 749 1-GRAM I-GENE
             
-            unigramCounts[s2i[items[2]]] = int(items[0])
+            unigramCounts[populateStateMap(items[2])] = int(items[0])
             
                 
         elif (items[1].strip() == '2-GRAM'):
             # 749 2-GRAM * I-GENE
-            bigramCounts[s2i[items[2]] + ',' + s2i[items[3]]] = int(items[0])
+            bigramCounts[(populateStateMap(items[2]) , populateStateMap(items[3]))] = int(items[0])
         elif (items[1].strip() == '3-GRAM'):
             # 1813 3-GRAM I-GENE O STOP
-            trigramCounts[s2i[items[2]] + ',' + s2i[items[3]] + ',' + s2i[items[4]]] = int(items[0])
-
-    
-
- 
+            trigramCounts[(populateStateMap(items[2]) , populateStateMap(items[3]), populateStateMap(items[4]))] = int(items[0])
 
     # estimate emission probabilities
     for k, v in emissionCounts.items():
-        state = k.split('->')[0].strip()
-        obs = k.split('->')[1].strip()
-        key = obs + '|' + state
+        state = k[0]
+        obs = k[1]
+        key = (obs , state)
         seenObservations[obs] = 1
         value = math.log(v / float(unigramCounts[state]))
-        emissions[key] = value
+        # emissions[key] = value
+        emissions[(obs, state)] = value
     
     # estimate transition probabilities
     for k, v in trigramCounts.items():
         # k = D,N,V 
-        state_old = k.split(',')[0] + ',' + k.split(',')[1]
+        state_old = (k[0] , k[1])
         # count of D,N,V over count of D,N
         value = math.log(v / float(bigramCounts[state_old]))
         # probability_key = V/D,N
-        probability_key = k.split(',')[2] + '|' + state_old
+        probability_key = (k[2] , k[0] , k[1])
+        # transitions[probability_key] = value
         transitions[probability_key] = value
     
-
 
 def getWordPossibleTags(word):    
     states = []
     for state in unigramCounts.keys():
-        if (emissions.has_key(word + '|' + state)):
+        if emissions.has_key((word , state)):
             states.append(state)
     return states
 
-def replaceRareWord(token):
-    return '_RARE_'
-    if re.match("[0-9]", token):
+def oldRareWords(token):
+    if len(re.findall(r'[0-9]', token)) > 0:
         return '_RARE_NUMERIC_'
-    elif (token.upper() == token):
-        return '_RARE_ALL_CAPS_'
-    elif (token[len(token)-1].upper() == token[len(token)-1]):
-        return '_RARE_LAST_CAP_'
-    else:
+    elif  len(re.findall(r'[A-Z]', token)) == len(token):
+            return '_RARE_ALL_CAPS_'
+    elif len(re.findall(r'[A-Z]', token[len(token) - 1])) == 1:
+            return '_RARE_LAST_CAP_'
+    else: 
         return '_RARE_'
+        
+def replaceRareWord(token):
+    return oldRareWords(token)
+    # try:
+    #    float(token)
+    #    return '_RARE_NUMERIC_'
+    # except:
+    #    
+    #    if (token.upper() == token):
+    #        return '_RARE_ALL_CAPS_'
+    #    elif (token[len(token)-1].upper() == token[len(token)-1]):
+    #        return '_RARE_LAST_CAP_'
+    #    elif (token[0].upper() == token[0]):
+    #        return '_RARE_FIRST_CAP_'
+    #    elif (token.endswith('s')):
+    #        return '_RARE_END_S_'
+    #    else:
+    #        return '_RARE_'
 
     
-def unwrap(pi, pi_pos):
-    max_pos_end = 'STOP'
-    max_pos_mid = []
-    for pk in sorted(pi_pos.keys(), reverse=True):
-       print pk, pi_pos[pk]
-       max_at_pk = float("-inf")
-       max_pos = ''
-       for pos in pi_pos[pk]:
-           print pos, pi[pos]
-           if (pi[pos] > max_at_pk and pos.split(",").pop() == max_pos_end):
-               max_pos = pos
-       print max_pos
-       max_pos_end = max_pos.split(",")[1] 
-       max_pos_mid.append(max_pos_end)
-    max_pos_mid.pop()
-    max_pos_mid.reverse()
-    return max_pos_mid
         
 def getViterbiProbability(possible_states_per_word, words):
     pi = {}
     arg_pi = {}
-    pi['0,*,*'] = 0 
-    arg_pi['0,*,*'] = []
+    pi[(0, s2i['*'], s2i['*'])] = 0  # 0,*,*
+    arg_pi[(0, s2i['*'], s2i['*'])] = []
     
-    for k in range(1, len(words) + 2):
-        for u in possible_states_per_word[k - 1]:
-          
-            for v in possible_states_per_word[k]:
-            
-               
-
-                ps = []
-                pw = []
+    for k in range(1, max(possible_states_per_word.keys())+1):
+        for v in possible_states_per_word[k]:
+            for u in possible_states_per_word[k - 1]:
+                prob2bt = {}
                 for w in possible_states_per_word[k - 2]:
-                   
-                    print 'k=', k, 'w=', w, 'u=', u, 'v=', v
-                    if (transitions.has_key(v + '|' + w + ',' + u)):
-                        q = transitions[v + '|' + w + ',' + u]
+                    print 'k=', k, 'w=', w, 'u=', u, 'v=', v, words[k]
+                    # if (transitions.has_key(v + '|' + w + ',' + u)):
+                    if transitions.has_key((v, w , u)):
+                        q = transitions[(v , w , u)]
+                        print str(v) , '|' , str(w) , ',' + str(v) , '=' , str(q)
                     else:
-                        q = float("-inf")
-                    if(v == 'STOP'):
-                        e = 0.0
-                    elif (emissions.has_key(words[k] + '|' + v)):
-                        # print 'e = ',words[k],'|',v
-                        e = emissions[words[k] + '|' + v]
+                        q = float("-inf")                     
+                    
+                    if emissions.has_key((words[k], v)):
+                        e = emissions[(words[k] , v)]
+                        print words[k], '|', v , '=' , str(e)
                     else:
                         e = float("-inf")
                    
-                    pi_key = str(k - 1) + ',' + w + ',' + u
+                    pi_key = str(k - 1) + ',' + str(w) + ',' + str(u)
                     print 'searching pi_key', pi_key
-                    p = pi[str(k - 1) + ',' + w + ',' + u] + q + e
-                    bt = list(arg_pi[str(k - 1) + ',' + w + ',' + u])
                     
+                    p = pi[(k - 1 , w , u)] + q + e
+                    bt = list(arg_pi[(k - 1, w , u)])              
                     bt.append(w)
-                    if (v == 'STOP'):
-                        bt.append(u)
-                    ps.append(p)
-                    pw.append(bt)
-                max_p = max(ps)
-                max_bt = pw[ps.index(max_p)]
-                new_pi_key = str(k) + ',' + u + ',' + v
-                # print 'pi[',new_pi_key, ']= pi[',pi_key,']=',math.exp(pi[str(int(k-1))+','+w+','+u]),' q=',math.exp(q),' * e=',math.exp(e), ' = ' ,math.exp(max_p)
+                    prob2bt[p] = bt
+                max_p = max(prob2bt.keys())
+                print 'max_p =', max_p, 'when k,v,w,u' , k, v, w, u
+                pprint(prob2bt)
+                max_bt = prob2bt[max_p]
+                new_pi_key = (k, u , v)
                 pi[new_pi_key] = max_p
                 arg_pi[new_pi_key] = max_bt
 
-            
-    
+    # finding max u,v
+    k =  max(possible_states_per_word.keys())
+    prob2bt = {}
+    for v in possible_states_per_word[k]:
+        for u in possible_states_per_word[k - 1]:
+                print 'last k,u,v,word=', k, u, v ,words[k-1], words[k] 
+                if transitions.has_key((s2i['STOP'], u , v)):
+                    q = transitions[(s2i['STOP'], u , v)]
+                    print s2i['STOP'] , '|' , str(u) , ',' + str(v) , '=' , str(q)
+                else:
+                    q = float("-inf") 
+                p = pi[(k  , u , v)] + q
+                bt = list(arg_pi[(k, u , v)])             
+                bt.append(u)
+                bt.append(v)
+                prob2bt[p] = bt;
+
+    max_bt = prob2bt[max(prob2bt.keys())]
+    max_p = max(prob2bt.keys())
+    print max_p, max_bt
     max_bt.pop(0)
     max_bt.pop(0)
     max_bt = map(lambda bt: i2s[bt], max_bt)
@@ -175,57 +184,54 @@ def getViterbiProbability(possible_states_per_word, words):
 def getPossibleSates(sentence):
     words = {}
     possible_states_per_word = {}
-    possible_states_per_word[-1] = ['*']
-    possible_states_per_word[0] = ['*']
+    possible_states_per_word[-1] = [s2i['*']]
+    possible_states_per_word[0] = [s2i['*']]
     i = 1
     for word in sentence.split("\n"):
-        
         word = word.strip()
-       
-        if (seenObservations.has_key(word)):
-            
-            words[i] = word
-            possible_states_per_word[i] = getWordPossibleTags(word)
+        if (word == ''):
+            print 'skipping empty word'
         else:
-            rare_word = replaceRareWord(word)
-            print rare_word
-            words[i] = rare_word
-            possible_states_per_word[i] = getWordPossibleTags(rare_word)
-        # print word, possible_states_per_word[i]
-        i += 1
+            if (seenObservations.has_key(word)):
+                words[i] = word
+                possible_states_per_word[i] = getWordPossibleTags(word)
+            else:
+                rare_word = replaceRareWord(word)
+                words[i] = rare_word
+                possible_states_per_word[i] = getWordPossibleTags(rare_word)
+            # print word, possible_states_per_word[i]
+            i += 1
     
-    possible_states_per_word[i] = ['STOP']
+    #possible_states_per_word[i] = [s2i['STOP']]
     return (possible_states_per_word, words)
 
-def getMaxEmission(emissions, observation):
-    max_log_prob = float("-Inf")
-    max_state = ''
-    for state in unigramCounts.keys():
-        if (emissions.has_key(observation + '|' + state) and emissions[observation + '|' + state] >= max_log_prob):
-            # print observation , state, emissions[observation+'|'+state]
-            max_log_prob = emissions[observation + '|' + state]
-            max_state = state
-    # print observation, max_state, max_log_prob
-    return max_state
+
     
 if __name__ == "__main__":
 
-    countFile = 'outputs/gene-rare.count'
-    testFile = 'data/gene.test'
-    outputFile = 'outputs/gene_test.p2.out'
+    countFile = '../outputs/gene-rare-cat.count'
+    testFile = '../data/gene.dev'
+    outputFile = '../outputs/gene-dev-with-state-map.p3.out'
     writer = open(outputFile, 'w')
     MLEstimates(countFile)
     i2s = {v:k for k, v in s2i.items()}  # create a number to state mapping for displaying the state sequence in the end
+    print s2i
+    print i2s
     testSentences = open(testFile, 'r').read().split("\n\n")
-    for a_sentence in testSentences:
-        (possible_states_per_word, words) = getPossibleSates(a_sentence.strip())
-        print a_sentence.strip().split("\n")
-        tags = getViterbiProbability(possible_states_per_word, words)
+    for i, a_sentence in enumerate(testSentences):
+        (possible_states_per_word, words) = getPossibleSates(a_sentence.rstrip())
+        # print a_sentence.strip().split("\n")
+        if(len(words) > 0):
+            tags = getViterbiProbability(possible_states_per_word, words)
+        else:
+            tags  =[]
         original_words = a_sentence.strip().split('\n')
         for word, tag in zip(original_words, tags):
-            print word, tag
+            # print word, tag
             writer.write(word + ' ' + tag + '\n')
-        writer.write('\n')    
+        if(i < len(testSentences) - 1):
+            writer.write('\n')    
     writer.flush()
     writer.close()
-       
+    os.system("python ../src/eval_gene_tagger.py ../data/gene.key " + outputFile)
+    

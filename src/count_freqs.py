@@ -163,7 +163,7 @@ if __name__ == "__main__":
     try:
         input = file(sys.argv[1],"r")
     except IOError:
-        sys.stderr.write("ERROR: Cannot read inputfile");
+        sys.stderr.write("ERROR: Cannot read inputfile %s.\n" % sys.argv)
         sys.exit(1)
     
     # Initialize a trigram counter
